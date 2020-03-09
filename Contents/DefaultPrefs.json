@@ -1,0 +1,14 @@
+[
+  {
+    "id": "artwork",
+    "label": "use Photo as Artwork",
+    "type": "bool",
+    "default": "false"
+  },
+  {
+    "id": "YouTube-Agent_youtube_api_key",
+    "label": "YouTube API Key (Leave blank for Default Key)",
+    "type": "text",
+    "default": "AIzaSyC2q8yjciNdlYRNdvwbb7NEcDxBkv1Cass"
+  }
+]
