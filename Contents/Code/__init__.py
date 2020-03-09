@@ -67,6 +67,7 @@ def GetLibraryRootPath(dir):
                 library = PLEX_LIBRARY[key]
                 path    = os.path.relpath(dir, key)
                 return library, root, path
+    return library, root, dir
 
 # Agent definition
 ########################################################################
@@ -94,7 +95,7 @@ class YouTubeMusicAgent(Agent.Artist):
 
         dir                 = os.path.dirname(unquote_filename)
         library, root, path = GetLibraryRootPath(dir)
-        art_dir = os.path.dirname(path)
+        art_dir = os.path.basename(os.path.dirname(path))
         album_dir = os.path.basename(path)
 
         Log.Info('[ ] dir:        "{}"'.format(dir    ))
@@ -103,11 +104,13 @@ class YouTubeMusicAgent(Agent.Artist):
         Log.Info('[ ] artist:     "{}"'.format(art_dir))
         Log.Info('[ ] album:      "{}"'.format(album_dir))
         
-        display_name = re.sub(r'\[.*\]', '', path).strip()
+        display_name = re.sub(r'\[.*\]', '', art_dir).strip()
         media.artist = display_name
         
-        array = [('YOUTUBE_REGEX_PLAYLIST', YOUTUBE_REGEX_PLAYLIST), ('YOUTUBE_REGEX_CHANNEL',
-                                                                      YOUTUBE_REGEX_CHANNEL), ('YOUTUBE_REGEX_VIDEO', YOUTUBE_REGEX_VIDEO)]
+        array = [('YOUTUBE_REGEX_PLAYLIST', YOUTUBE_REGEX_PLAYLIST),
+            ('YOUTUBE_REGEX_CHANNEL', YOUTUBE_REGEX_CHANNEL),
+            ('YOUTUBE_REGEX_VIDEO', YOUTUBE_REGEX_VIDEO)]
+
         try:
             for regex, url in array:
                 result = url.search(path)
@@ -128,6 +131,8 @@ class YouTubeMusicAgent(Agent.Artist):
         except Exception as e:
             guid = None
             Log('search() - filename: "{}" Regex failed to find YouTube id: "{}", error: "{}"'.format(filename, regex, e))
+            
+        
 
     def update(self, metadata, media, lang):
         YOUTUBE_API_KEY = Prefs['YouTube-Agent_youtube_api_key']
@@ -207,8 +212,11 @@ class YouTubeMusicAlbumAgent(Agent.Album):
 
         temp, guid, art = media.parent_metadata.id.split("|")
         res = YOUTUBE_REGEX_PLAYLIST.search(album_dir)
-        album_id = res.group('id') if res else ''
-        album = re.sub(r'\[.*\]', '', album_dir).strip()
+        album_id = res.group('id') if res else 'unknown'
+        if album_id == 'unknown':
+            album = '알수없는 앨범'
+        else:     
+            album = re.sub(r'\[.*\]', '', album_dir).strip()
 
         Log.Info('[ ] metadata.id : "{}"'.format(media.parent_metadata.id))
         
@@ -218,23 +226,34 @@ class YouTubeMusicAlbumAgent(Agent.Album):
         Log.Info('[ ] artist:     "{}"'.format(art))
         Log.Info('[ ] album:      "{}"'.format(album))
 
-        try:
-            URL_PLAYLIST_DETAILS  = '{}&id={}&key={}'.format(YOUTUBE_PLAYLIST_DETAILS, album_id, YOUTUBE_API_KEY)
-            Log.Info('[ ] json_playlist_url: {}'.format(URL_PLAYLIST_DETAILS))
-            json_playlist_details = json_load(URL_PLAYLIST_DETAILS)['items']
-        except Exception as e:  Log('[!] json_playlist_details exception: {}, url: {}'.format(e, YOUTUBE_PLAYLIST_DETAILS.format(guid)))
+        # album found
+        if album_id != 'unknown':
+            try:
+                URL_PLAYLIST_DETAILS  = '{}&id={}&key={}'.format(YOUTUBE_PLAYLIST_DETAILS, album_id, YOUTUBE_API_KEY)
+                Log.Info('[ ] json_playlist_url: {}'.format(URL_PLAYLIST_DETAILS))
+                json_playlist_details = json_load(URL_PLAYLIST_DETAILS)['items']
+            except Exception as e:  Log('[!] json_playlist_details exception: {}, url: {}'.format(e, YOUTUBE_PLAYLIST_DETAILS.format(guid)))
+            else:
+                Log.Info('[?] length of json_playlist_details: {}'.format(len(json_playlist_details)))
+                
+                # play list to albums
+                for pl in json_playlist_details:
+                    Log.Info('[ ] snippet title :    {} - {}'.format(pl['snippet']['title'], pl['id']))
+                    if album_id == pl['id']:
+                        results.Append(MetadataSearchResult(
+                            id=pl['id'],
+                            name=pl['snippet']['title'],
+                            lang=Locale.Language.Korean,
+                            score=100))
+        # unknown album
         else:
-            Log.Info('[?] length of json_playlist_details: {}'.format(len(json_playlist_details)))
+            results.Append(MetadataSearchResult(
+                            id=album_id,
+                            name='알수없는 앨범',
+                            lang=Locale.Language.Korean,
+                            score=100))
+                
             
-            # play list to albums
-            for pl in json_playlist_details:
-                Log.Info('[ ] snippet title :    {} - {}'.format(pl['snippet']['title'], pl['id']))
-                if album_id == pl['id']:
-                    results.Append(MetadataSearchResult(
-                        id=pl['id'],
-                        name=pl['snippet']['title'],
-                        lang=Locale.Language.Korean,
-                        score=100))
 
     def update(self, metadata, media, lang):
         YOUTUBE_API_KEY = Prefs['YouTube-Agent_youtube_api_key']
@@ -265,30 +284,34 @@ class YouTubeMusicAlbumAgent(Agent.Album):
         # 'summary': 
         # 'reviews': 
         # 'artist':
+        
+        # playlist exists
+        if guid != 'unknown':
+            Log.Info('[?] json_playlist_details')
+            try:
+                URL_PLAYLIST_DETAILS  = '{}&id={}&key={}'.format(YOUTUBE_PLAYLIST_DETAILS, guid, YOUTUBE_API_KEY)
+                json_playlist_details = json_load(URL_PLAYLIST_DETAILS)['items'][0]
+            except Exception as e:  Log('[!] json_playlist_details exception: {}, url: {}'.format(e, YOUTUBE_PLAYLIST_DETAILS.format(guid)))
+            else:
+                Log.Info('[?] json_playlist_details: {}'.format(json_playlist_details.keys()))
+                
+                # title
+                metadata.title   = filterInvalidXMLChars(Dict(json_playlist_details, 'snippet', 'title'))
+                Log.Info('[ ] title:      "{}"'.format(metadata.title))
 
-        Log.Info('[?] json_playlist_details')
-        try:
-            URL_PLAYLIST_DETAILS  = '{}&id={}&key={}'.format(YOUTUBE_PLAYLIST_DETAILS, guid, YOUTUBE_API_KEY)
-            json_playlist_details = json_load(URL_PLAYLIST_DETAILS)['items'][0]
-        except Exception as e:  Log('[!] json_playlist_details exception: {}, url: {}'.format(e, YOUTUBE_PLAYLIST_DETAILS.format(guid)))
+                # summary
+                if Dict(json_playlist_details, 'snippet', 'description'):
+                    metadata.summary = Dict(json_playlist_details, 'snippet', 'description')
+                
+                # posters
+                if Dict(json_playlist_details, 'snippet', 'thumbnails', 'standard', 'url'):
+                    poster_url = Dict(json_playlist_details, 'snippet', 'thumbnails', 'standard', 'url')
+                    Log.Info('[ ] poster:      "{}"'.format(poster_url))
+                    metadata.posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url), sort_order=1)
+        
+        # only video(Unknown playlist)
         else:
-            Log.Info('[?] json_playlist_details: {}'.format(json_playlist_details.keys()))
-            
-            # title
-            metadata.title   = filterInvalidXMLChars(Dict(json_playlist_details, 'snippet', 'title'))
-            Log.Info('[ ] title:      "{}"'.format(metadata.title))
-
-            # summary
-            if Dict(json_playlist_details, 'snippet', 'description'):
-                metadata.summary = Dict(json_playlist_details, 'snippet', 'description')
-            
-            # posters
-            if Dict(json_playlist_details, 'snippet', 'thumbnails', 'standard', 'url'):
-                poster_url = Dict(json_playlist_details, 'snippet', 'thumbnails', 'standard', 'url')
-                Log.Info('[ ] poster:      "{}"'.format(poster_url))
-                metadata.posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url), sort_order=1)
-            
-
+            Log.Info('[ ] unknown album')
 
 
 
@@ -307,7 +330,7 @@ YOUTUBE_CHANNEL_DETAILS = YOUTUBE_API_BASE_URL + 'channels?part=snippet%2Cconten
 YOUTUBE_CHANNEL_ITEMS = YOUTUBE_API_BASE_URL + 'search?order=date&part=snippet&type=video&maxResults=50'                  # &channelId=string     &key=apikey
 YOUTUBE_CHANNEL_PLAYLISTS = YOUTUBE_API_BASE_URL + ''
 
-# https://www.googleapis.com/youtube/v3/playlists?part=snippet&channelId=UCqXwKu6dKobXEQFhdKtiJLQ&key=
+# https://www.googleapis.com/youtube/v3/playlists?part=snippet&channelId=UCqXwKu6dKobXEQFhdKtiJLQ&key=AIzaSyAhv5XYUsrF-kfkjhQgQ1IFqbkFS9f9RpM
 
 YOUTUBE_REGEX_VIDEO = Regex('\[(?:youtube\-)?(?P<id>[a-z0-9\-_]{11})\]', Regex.IGNORECASE) # https://regex101.com/r/BFKkGc/3/
 YOUTUBE_REGEX_PLAYLIST = Regex('\[(?:youtube\-)?(?P<id>PL[^\[\]]{16}|PL[^\[\]]{32}|OL[^\[\]]{39}|UU[^\[\]]{22}|FL[^\[\]]{22}|LP[^\[\]]{22}|RD[^\[\]]{22}|UC[^\[\]]{22}|HC[^\[\]]{22})\]',  Regex.IGNORECASE)  # https://regex101.com/r/37x8wI/2
