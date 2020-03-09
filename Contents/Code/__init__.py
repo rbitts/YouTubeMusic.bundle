@@ -307,7 +307,7 @@ YOUTUBE_CHANNEL_DETAILS = YOUTUBE_API_BASE_URL + 'channels?part=snippet%2Cconten
 YOUTUBE_CHANNEL_ITEMS = YOUTUBE_API_BASE_URL + 'search?order=date&part=snippet&type=video&maxResults=50'                  # &channelId=string     &key=apikey
 YOUTUBE_CHANNEL_PLAYLISTS = YOUTUBE_API_BASE_URL + ''
 
-# https://www.googleapis.com/youtube/v3/playlists?part=snippet&channelId=UCqXwKu6dKobXEQFhdKtiJLQ&key=AIzaSyAhv5XYUsrF-kfkjhQgQ1IFqbkFS9f9RpM
+# https://www.googleapis.com/youtube/v3/playlists?part=snippet&channelId=UCqXwKu6dKobXEQFhdKtiJLQ&key=
 
 YOUTUBE_REGEX_VIDEO = Regex('\[(?:youtube\-)?(?P<id>[a-z0-9\-_]{11})\]', Regex.IGNORECASE) # https://regex101.com/r/BFKkGc/3/
 YOUTUBE_REGEX_PLAYLIST = Regex('\[(?:youtube\-)?(?P<id>PL[^\[\]]{16}|PL[^\[\]]{32}|OL[^\[\]]{39}|UU[^\[\]]{22}|FL[^\[\]]{22}|LP[^\[\]]{22}|RD[^\[\]]{22}|UC[^\[\]]{22}|HC[^\[\]]{22})\]',  Regex.IGNORECASE)  # https://regex101.com/r/37x8wI/2
